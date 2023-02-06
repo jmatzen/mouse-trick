@@ -1,29 +1,11 @@
-extern crate num;
-
-#[macro_use]
-extern crate num_derive;
-
 use windows:: {
-    core::*,
-    Win32::Foundation::*,
-    Win32::UI::WindowsAndMessaging::*,
+    // core::*,
+    // Win32::Foundation::*,
+    // Win32::UI::WindowsAndMessaging::*,
     Win32::UI::Input::KeyboardAndMouse::*,
 };
 
 use std::{thread,time};
-
-
-#[derive(FromPrimitive,Debug)]
-enum Action {
-    MOVE_FORWARD = 0,
-    MOVE_BACKWARD = 1
-}
-
-#[derive(ToPrimitive,Debug)]
-enum ScanCode {
-    W = 17,
-    S = 31
-}
 
 fn delay_s(s: u64) -> time::Duration {
     time::Duration::from_secs(s)
@@ -31,49 +13,57 @@ fn delay_s(s: u64) -> time::Duration {
 
 fn main() {
     loop {
-        let action = num::FromPrimitive::from_u32(rand::random::<u32>() % 2);
-        println!("{:?}", action);
-        match action  {
-            Some(Action::MOVE_BACKWARD) => move_backward(),
-            Some(Action::MOVE_FORWARD) => move_forward(),
-            None => {}
+        let rnd = rand::random::<u32>() % 8;
+        match rnd {
+            0 => do_scan_code('W'),
+            1 => do_scan_code('W'),
+            2 => do_scan_code('W'),
+            3 => do_scan_code('W'),
+            4 => do_scan_code(' '),
+            5 => do_scan_code('S'),
+            6 => do_scan_code('A'),
+            7 => do_scan_code('D'),
+            _ => (),
         }
     }
 }
 
-fn do_scan_code(sc: ScanCode) {
-    let keydown = INPUT {
-        r#type: INPUT_KEYBOARD,
-        Anonymous: INPUT_0 { ki: KEYBDINPUT {
-           wScan: num::ToPrimitive::to_u16(&sc).unwrap(),
-           dwFlags: KEYEVENTF_SCANCODE,
-           ..Default::default()
-        }}
-    };
-
-    let mut keyup = INPUT {
-        r#type: INPUT_KEYBOARD,
-        Anonymous: INPUT_0 { ki: KEYBDINPUT {
-            wScan: num::ToPrimitive::to_u16(&sc).unwrap(),
-            dwFlags: KEYEVENTF_KEYUP | KEYEVENTF_SCANCODE,
-            ..Default::default()
-        }}
-    };
-    let delay = rand::random::<u64>() % 4 + 2;
+fn do_scan_code(ch: char) {
+    let scancode;
     unsafe {
-        SendInput( &[keydown], std::mem::size_of::<INPUT>() as i32);
+        scancode = MapVirtualKeyA(ch as u32, MAPVK_VK_TO_VSC);
+    }
+    
+    let delay = rand::random::<u64>() % 4 + 2;
+    
+    if ch == 'W' || ch == ' ' {
+        send_scan_code(SCANCODE_LSHIFT, Default::default());
+        send_scan_code(scancode, Default::default());
         wait(delay);
-        SendInput( &[keyup], std::mem::size_of::<INPUT>() as i32);
+        send_scan_code(scancode, KEYEVENTF_KEYUP);
+        send_scan_code(SCANCODE_LSHIFT, KEYEVENTF_KEYUP);
+    } else {
+        send_scan_code(scancode, Default::default());
+        wait(delay);
+        send_scan_code(scancode, KEYEVENTF_KEYUP);
     }
 
 }
 
-fn move_backward() {
-    do_scan_code(ScanCode::S);
-}
+fn send_scan_code(sc: u32, flags: KEYBD_EVENT_FLAGS) {
+    
+    let input = INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 { ki: KEYBDINPUT {
+            wScan:  sc as u16,
+            dwFlags: flags | KEYEVENTF_SCANCODE,
+            ..Default::default()
+        }}
+    };
 
-fn move_forward() {
-    do_scan_code(ScanCode::W);
+    unsafe {
+        SendInput(&[input], std::mem::size_of::<INPUT>() as i32);
+    }
 }
 
 fn wait(delay: u64) {
